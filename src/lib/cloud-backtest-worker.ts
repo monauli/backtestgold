@@ -13,6 +13,9 @@ type CloudJob = {
 function safeError(error: unknown) {
   return error instanceof Error ? error.message.split("\n")[0].slice(0, 500) : "BACKTEST_WORKER_FAILED";
 }
+class WorkerValidationError extends Error {
+  constructor(public code: string, public details: Record<string, unknown>) { super(code); }
+}
 
 function validateTrades(runId: string, trades: BacktestTrade[]) {
   const allowedResults = new Set(["WIN", "LOSS", "BREAKEVEN", "AMBIGUOUS", "SKIPPED", "OPEN_AT_END"]);
@@ -68,9 +71,9 @@ export async function processOneCloudBacktest(targetRunId?: string) {
     const params: EngineParams = { breakoutDistance: pipsToPrice(req.breakoutPips), stopLossDistance: pipsToPrice(req.stopLossPips), takeProfitDistance: pipsToPrice(req.takeProfitPips), lot: req.lot, initialBalance: req.initialBalance, spread: 0, slippage: 0, commission: 0, session: "ALL", ambiguousHandling: "SKIP" };
     const engine = new BreakoutEngine(h4, params); for (const candle of m1) engine.onM1(candle); engine.finish(); engine.equity[0].time = from.toISOString();
     await jobs.updateOne({ runId: job.runId }, { $set: { progress: 60, currentStep: "Engine completed; validating output" } });
-    const { documents: tradeDocuments } = validateTrades(job.runId, engine.trades); const equityDocuments = validateEquity(job.runId, engine.equity);
+    const executedTrades = engine.trades.filter((trade) => trade.result !== "SKIPPED" && trade.result !== "AMBIGUOUS");
+    const { documents: tradeDocuments } = validateTrades(job.runId, executedTrades); const equityDocuments = validateEquity(job.runId, engine.equity);
     const metrics = computeMetrics(engine.trades, engine.equity, req.initialBalance);
-    if (metrics.totalTrades !== tradeDocuments.length) throw new Error("SUMMARY_TRADE_COUNT_MISMATCH");
     const config = { runId: job.runId, strategyId: "xau_h4_breakout", strategyName: BREAKOUT_METHOD_NAME, method: BREAKOUT_METHOD_NAME, ...req, breakoutPriceDistance: pipsToPrice(req.breakoutPips), stopLossPriceDistance: pipsToPrice(req.stopLossPips), takeProfitPriceDistance: pipsToPrice(req.takeProfitPips), riskReward: req.takeProfitPips / req.stopLossPips, pipSize: PIP_SIZE, pipValuePerLotUSD: PIP_VALUE_PER_LOT_USD, calculationVersion: CALCULATION_VERSION };
     const trades = db.collection("backtest_trades"); const equity = db.collection("backtest_equity");
     await trades.deleteMany({ runId: job.runId, $or: [{ tradeSequence: null }, { tradeSequence: { $exists: false } }] });
@@ -78,18 +81,20 @@ export async function processOneCloudBacktest(targetRunId?: string) {
     if (tradeDocuments.length) await trades.bulkWrite(tradeUpsertOperations(tradeDocuments), { ordered: false });
     if (equityDocuments.length) await equity.bulkWrite(equityUpsertOperations(equityDocuments), { ordered: false });
     await jobs.updateOne({ runId: job.runId }, { $set: { progress: 85, currentStep: "Verifying stored result" } });
-    const [tradeCount, winCount, lossCount, netProfitRows, equityCount] = await Promise.all([
-      trades.countDocuments({ runId: job.runId }), trades.countDocuments({ runId: job.runId, netProfit: { $gt: 0 } }), trades.countDocuments({ runId: job.runId, netProfit: { $lt: 0 } }),
+    const [tradeCount, winCount, lossCount, breakEvenCount, openAtEndCount, netProfitRows, equityCount] = await Promise.all([
+      trades.countDocuments({ runId: job.runId }), trades.countDocuments({ runId: job.runId, netProfit: { $gt: 0 } }), trades.countDocuments({ runId: job.runId, netProfit: { $lt: 0 } }), trades.countDocuments({ runId: job.runId, netProfit: 0 }), trades.countDocuments({ runId: job.runId, result: "OPEN_AT_END" }),
       trades.aggregate([{ $match: { runId: job.runId } }, { $group: { _id: null, total: { $sum: "$netProfit" } } }]).toArray(), equity.countDocuments({ runId: job.runId }),
     ]);
-    const netProfit = Number(netProfitRows[0]?.total ?? 0); if (tradeCount !== metrics.totalTrades || winCount !== metrics.winningTrades || lossCount !== metrics.losingTrades || Math.abs(netProfit - metrics.netProfit) > 0.01 || equityCount !== equityDocuments.length) throw new Error("FINALIZATION_VERIFICATION_FAILED");
+    const netProfit = Number(netProfitRows[0]?.total ?? 0);
+    const details = { expectedTotalTrades: metrics.totalTrades, storedTotalTrades: tradeCount, expectedWins: metrics.winningTrades, storedWins: winCount, expectedLosses: metrics.losingTrades, storedLosses: lossCount, expectedBreakEven: metrics.breakevenTrades, storedBreakEven: breakEvenCount, expectedOpenAtEnd: metrics.openAtEndTrades, storedOpenAtEnd: openAtEndCount, expectedNetProfit: metrics.netProfit, storedNetProfit: netProfit };
+    if (tradeCount !== metrics.totalTrades || winCount !== metrics.winningTrades || lossCount !== metrics.losingTrades || breakEvenCount !== metrics.breakevenTrades || openAtEndCount !== metrics.openAtEndTrades || Math.abs(netProfit - metrics.netProfit) > 0.01 || equityCount !== equityDocuments.length) throw new WorkerValidationError("SUMMARY_TRADE_COUNT_MISMATCH", details);
     const now = new Date();
     await db.collection("backtest_runs").replaceOne({ runId: job.runId }, { runId: job.runId, strategyId: "xau_h4_breakout", strategyName: BREAKOUT_METHOD_NAME, config, summary: metrics, calculationVersion: CALCULATION_VERSION, createdAt: job.createdAt, completedAt: now }, { upsert: true });
     await jobs.updateOne({ runId: job.runId }, { $set: { status: "COMPLETED", progress: 100, currentStep: "COMPLETED", completedAt: now, error: null, errorCode: null, checkpoint: { lastProcessedH4Timestamp: to, balance: engine.balance, tradeSequence: tradeDocuments.length, equitySequence: equityDocuments.length } } });
     return { status: "COMPLETED" as const, runId: job.runId, tradeCount, equityCount, progress: 100 };
   } catch (error) {
-    const message = safeError(error); await jobs.updateOne({ runId: job.runId }, { $set: { status: "FAILED", progress: 0, currentStep: "FAILED", errorCode: message, error: message, completedAt: new Date() } });
-    return { status: "FAILED" as const, runId: job.runId, errorCode: message, error: message };
+    const code = error instanceof WorkerValidationError ? error.code : safeError(error); const message = error instanceof WorkerValidationError ? JSON.stringify(error.details) : safeError(error); await jobs.updateOne({ runId: job.runId }, { $set: { status: "FAILED", progress: 0, currentStep: "FAILED", errorCode: code, error: message, completedAt: new Date() } });
+    return { status: "FAILED" as const, runId: job.runId, errorCode: code, error: message };
   }
 }
 

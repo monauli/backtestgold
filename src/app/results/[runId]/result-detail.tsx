@@ -132,6 +132,8 @@ export default function ResultDetail({
             <Metric label="Total Trade" value={m.totalTrades} />
             <Metric label="Win" value={m.winningTrades} />
             <Metric label="Loss" value={m.losingTrades} />
+            <Metric label="Break Even" value={m.breakevenTrades} />
+            <Metric label="Open at End" value={m.openAtEndTrades} />
             <Metric label="Win Rate" value={<span className="text-amber-400">{m.winRate.toFixed(2)}%</span>} />
             <Metric label="Loss Rate" value={m.lossRate.toFixed(2) + "%"} />
             <Metric label="Profit Factor" value={m.profitFactor ?? "-"} />

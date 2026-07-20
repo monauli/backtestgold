@@ -84,4 +84,26 @@ describe("metrics", () => {
       { month: "2024-02", trades: 2, netProfit: 80 },
     ]);
   });
+
+  it("keeps OPEN_AT_END as a label while counting its signed P/L", () => {
+    const open = trade({ id: "OPEN", result: "OPEN_AT_END", netProfit: 40, pips: 100, entryTime: "2024-03-01T10:00:00.000Z" });
+    const result = computeMetrics([open], [{ time: "a", balance: 10000 }, { time: "b", balance: 10040 }], 10000);
+    expect(open.result).toBe("OPEN_AT_END");
+    expect(result.totalTrades).toBe(1);
+    expect(result.winningTrades).toBe(1);
+    expect(result.losingTrades).toBe(0);
+    expect(result.breakevenTrades).toBe(0);
+    expect(result.openAtEndTrades).toBe(1);
+    expect(result.netProfit).toBe(40);
+    expect(result.finalBalance).toBe(10040);
+  });
+
+  it("counts a zero-profit OPEN_AT_END as break-even", () => {
+    const open = trade({ id: "OPEN_ZERO", result: "OPEN_AT_END", netProfit: 0, pips: 0 });
+    const result = computeMetrics([open], [{ time: "a", balance: 10000 }], 10000);
+    expect(result.totalTrades).toBe(1);
+    expect(result.breakevenTrades).toBe(1);
+    expect(result.openAtEndTrades).toBe(1);
+    expect(result.winRate).toBe(0);
+  });
 });
