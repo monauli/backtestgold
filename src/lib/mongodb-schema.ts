@@ -2,7 +2,7 @@ import type { Db } from "mongodb";
 
 export const CLOUD_COLLECTIONS = [
   "candles", "data_sync_state", "data_sync_locks", "backtest_jobs", "backtest_runs",
-  "backtest_trades", "backtest_equity", "backtest_templates", "backtest_counters", "strategy_registry",
+  "backtest_trades", "backtest_equity", "backtest_templates", "backtest_counters", "strategy_registry", "batch_backtest_jobs", "batch_backtest_results",
 ] as const;
 
 const strategies = [
@@ -25,6 +25,11 @@ export async function initializeMongoSchema(db: Db) {
   await db.collection("backtest_templates").createIndex({ strategyId: 1, templateName: 1 }, { unique: true, name: "template_strategy_name" });
   await db.collection("backtest_counters").createIndex({ key: 1 }, { unique: true, name: "counter_key" });
   await db.collection("strategy_registry").createIndex({ strategyId: 1 }, { unique: true, name: "strategy_id" });
+  await db.collection("batch_backtest_jobs").createIndex({ batchId: 1 }, { unique: true, name: "batch_job_id" });
+  await db.collection("batch_backtest_results").createIndex({ batchId: 1, combinationId: 1 }, { unique: true, name: "batch_result_combination" });
+  await db.collection("batch_backtest_results").createIndex({ batchId: 1, profitFactor: -1 }, { name: "batch_result_profit_factor" });
+  await db.collection("batch_backtest_results").createIndex({ batchId: 1, winRate: -1 }, { name: "batch_result_win_rate" });
+  await db.collection("batch_backtest_results").createIndex({ batchId: 1, netProfit: -1 }, { name: "batch_result_net_profit" });
 
   const now = new Date();
   await db.collection("backtest_counters").updateOne(

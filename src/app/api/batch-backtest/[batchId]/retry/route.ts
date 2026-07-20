@@ -1,0 +1,4 @@
+import { NextResponse } from "next/server";
+import { getMongoDb } from "@/lib/mongodb";
+export const dynamic = "force-dynamic";
+export async function POST(_r: Request, { params }: { params: { batchId: string } }) { if (!/^batch\d{3}XAU$/.test(params.batchId)) return NextResponse.json({ error: "INVALID_BATCH_ID" }, { status: 400 }); const db = await getMongoDb(); const result = await db.collection("batch_backtest_results").updateMany({ batchId: params.batchId, status: "FAILED" }, { $set: { status: "QUEUED", error: null } }); await db.collection("batch_backtest_jobs").updateOne({ batchId: params.batchId, status: { $in: ["FAILED", "COMPLETED"] } }, { $set: { status: "QUEUED", errorCode: null, error: null, completedAt: null, progress: 0 } }); return NextResponse.json({ batchId: params.batchId, status: "QUEUED", retryCount: result.modifiedCount }); }

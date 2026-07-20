@@ -7,6 +7,7 @@ const nav = [
   { href: "/", label: "Dashboard" },
   { href: "/data", label: "Data XAUUSD" },
   { href: "/new", label: "New Backtest" },
+  { href: "/batch-backtest", label: "Batch Backtest" },
   { href: "/results", label: "Backtest Results" },
   { href: "/compare", label: "Compare Results" },
 ];
