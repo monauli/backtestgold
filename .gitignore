@@ -1,0 +1,14 @@
+node_modules/
+.next/
+reports/
+out/
+*.tsbuildinfo
+data-cache/
+
+.env.local
+data manual/
+data-cache/
+reports/
+.next/
+node_modules/
+*.tsbuildinfo

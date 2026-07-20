@@ -1,0 +1,5 @@
+import { getDataStorageMode } from "@/data/repository-factory";
+import { getMongoDb } from "@/lib/mongodb";
+import { readTrades } from "@/backtest/report";
+function csvValue(value: unknown) { const text = value == null ? "" : String(value); return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; }
+export async function GET(_request: Request, { params }: { params: { runId: string } }) { const trades = getDataStorageMode() === "MONGODB" ? await (await getMongoDb()).collection("backtest_trades").find({ runId: params.runId }, { projection: { _id: 0, runId: 0 } }).toArray() : readTrades(params.runId); const columns = Object.keys(trades[0] ?? {}); const stream = new ReadableStream({ start(controller) { controller.enqueue(`${columns.join(",")}\n`); for (const row of trades) controller.enqueue(`${columns.map((c) => csvValue((row as Record<string, unknown>)[c])).join(",")}\n`); controller.close(); } }); return new Response(stream, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename=${params.runId}-trades.csv` } }); }

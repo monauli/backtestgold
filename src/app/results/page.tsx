@@ -1,0 +1,6 @@
+import { readIndex } from "@/backtest/report";
+import ResultsTable from "./results-table";
+import { getDataStorageMode } from "@/data/repository-factory";
+import { getMongoDb } from "@/lib/mongodb";
+export const dynamic = "force-dynamic";
+export default async function ResultsPage() { let runs = [...readIndex()].reverse(); if (getDataStorageMode() === "MONGODB") { const db = await getMongoDb(); const completed = await db.collection("backtest_runs").find({}).sort({ createdAt: -1 }).toArray(); const ids = completed.map((x) => x.runId); const jobs = await db.collection("backtest_jobs").find({ runId: { $nin: ids } }).sort({ createdAt: -1 }).toArray(); runs = [...completed.map((d) => ({ runId: d.runId, status: "COMPLETED", createdAt: d.createdAt, finishedAt: d.completedAt, error: null, warnings: [], calculationVersion: d.calculationVersion, config: d.config, metrics: d.summary })), ...jobs.map((j) => ({ runId: j.runId, status: j.status, createdAt: j.createdAt, finishedAt: j.completedAt ?? null, error: j.error ?? null, warnings: [], calculationVersion: "2.0-pip-based", config: j.config, metrics: null }))] as never; } return <div className="space-y-6"><h2 className="text-2xl font-bold">Backtest Results</h2><ResultsTable runs={runs} /></div>; }

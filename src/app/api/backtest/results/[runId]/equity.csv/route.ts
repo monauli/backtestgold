@@ -1,0 +1,4 @@
+import { getDataStorageMode } from "@/data/repository-factory";
+import { getMongoDb } from "@/lib/mongodb";
+import { readEquity } from "@/backtest/report";
+export async function GET(_request: Request, { params }: { params: { runId: string } }) { const points = getDataStorageMode() === "MONGODB" ? await (await getMongoDb()).collection("backtest_equity").find({ runId: params.runId }, { projection: { _id: 0, runId: 0 } }).sort({ time: 1 }).toArray() : readEquity(params.runId); const stream = new ReadableStream({ start(controller) { controller.enqueue("time,balance\n"); for (const point of points) controller.enqueue(`${point.time},${point.balance}\n`); controller.close(); } }); return new Response(stream, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename=${params.runId}-equity.csv` } }); }
