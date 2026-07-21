@@ -9,6 +9,8 @@ import { XAU_TREND_PULLBACK_H1_ID, XAU_TREND_PULLBACK_H1_NAME } from "@/strategi
 import { BREAKOUT_H4_EMA_TREND_ID, BREAKOUT_H4_EMA_TREND_NAME, BREAKOUT_H4_EMA_TREND_WARMUP, buildH4EmaTrendFilter } from "@/strategies/breakout_h4_ema_trend";
 import { BREAKOUT_H4_STOP_AFTER_1_LOSS_ID, BREAKOUT_H4_STOP_AFTER_1_LOSS_NAME, BREAKOUT_H4_STOP_AFTER_1_LOSS_RULE, createStopAfterOneDailyLoss, existingCandleTimezone, summarizeDailyLosses } from "@/strategies/breakout_h4_stop_after_1_loss";
 import { DAILY_PREVIOUS_CANDLE_BREAKOUT_ID, DAILY_PREVIOUS_CANDLE_BREAKOUT_NAME, DAILY_PREVIOUS_CANDLE_BREAKOUT_ENTRY_OFFSET, DailyPreviousCandleBreakoutEngine } from "@/strategies/daily_previous_candle_breakout";
+import { ORDERFLOW_CONFLUENCE_V1_ID, ORDERFLOW_CONFLUENCE_V1_NAME } from "@/strategies/orderflow_confluence_v1/config";
+import { runOrderflowConfluenceV1, type OfcConfig } from "@/strategies/orderflow_confluence_v1/engine";
 
 type CloudJob = {
   runId: string; config: BacktestRequest; createdAt: Date; status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
@@ -109,6 +111,38 @@ async function processDailyPreviousCandleBreakoutJob(db: Awaited<ReturnType<type
   const now = new Date(); await db.collection("backtest_runs").replaceOne({ runId: job.runId }, { runId: job.runId, strategyId: DAILY_PREVIOUS_CANDLE_BREAKOUT_ID, strategyName: DAILY_PREVIOUS_CANDLE_BREAKOUT_NAME, config, summary: metrics, calculationVersion: CALCULATION_VERSION, createdAt: job.createdAt, completedAt: now }, { upsert: true }); await db.collection("backtest_jobs").updateOne({ runId: job.runId }, { $set: { status: "COMPLETED", progress: 100, currentStep: "COMPLETED", completedAt: now, error: null, errorCode: null, checkpoint: { lastProcessedD1Timestamp: to, balance: engine.balance, tradeSequence: tradeDocuments.length, equitySequence: equityDocuments.length } } }); return { status: "COMPLETED" as const, runId: job.runId, tradeCount: tradeDocuments.length, equityCount: equityDocuments.length, progress: 100 };
 }
 
+function orderflowConfig(req: BacktestRequest): OfcConfig {
+  return {
+    lot: req.lot, initialBalance: req.initialBalance, riskReward: req.riskReward ?? 2,
+    stopBufferPips: req.stopBufferPips ?? 20, minimumStopDistancePips: req.minimumStopDistancePips ?? 20,
+    maximumStopDistancePips: req.maximumStopDistancePips ?? 500, maximumEntryDistanceFromLevelPips: req.maximumEntryDistanceFromLevelPips ?? 100,
+    maximumTradesPerSession: req.maximumTradesPerSession ?? 1, maximumTradesPerDay: req.maxTradesPerDay ?? 2,
+    cooldownBars: req.cooldownBars ?? 30, useProxyVwapBias: req.useProxyVwapBias ?? false,
+    spreadPips: req.spreadPips ?? 0, slippagePips: req.slippagePips ?? 0, commissionPerLot: req.commissionPerLot ?? 0,
+  };
+}
+
+async function processOrderflowConfluenceJob(db: Awaited<ReturnType<typeof getMongoDb>>, job: CloudJob, req: BacktestRequest, from: Date, to: Date) {
+  const repo = new MongoCandleRepository();
+  const [m1, d1] = await Promise.all([
+    repo.getCandlesExclusive("XAUUSD", "M1", from, new Date(to.getTime() + 1)),
+    repo.getCandlesExclusive("XAUUSD", "D1", new Date(from.getTime() - 22 * 86_400_000), new Date(to.getTime() + 1)),
+  ]);
+  await db.collection("backtest_jobs").updateOne({ runId: job.runId }, { $set: { progress: 25, currentStep: `Loaded ${m1.length} M1 and ${d1.length} D1 candles` } });
+  if (!m1.length || d1.length < 2) throw new Error("INSUFFICIENT_ORDERFLOW_M1_D1_CANDLES");
+  const cfg = orderflowConfig(req); const engine = runOrderflowConfluenceV1(m1, d1, cfg);
+  const { documents: tradeDocuments } = validateTrades(job.runId, engine.trades); const equityDocuments = validateEquity(job.runId, engine.equity);
+  const metrics = computeMetrics(engine.trades, engine.equity, req.initialBalance);
+  const config = { runId: job.runId, strategyId: ORDERFLOW_CONFLUENCE_V1_ID, strategyName: ORDERFLOW_CONFLUENCE_V1_NAME, method: ORDERFLOW_CONFLUENCE_V1_NAME, ...req, ...cfg, rejectedSignals: engine.rejected, calculationVersion: CALCULATION_VERSION, pipSize: PIP_SIZE, pipValuePerLotUSD: PIP_VALUE_PER_LOT_USD };
+  const trades = db.collection("backtest_trades"); const equity = db.collection("backtest_equity");
+  if (tradeDocuments.length) await trades.bulkWrite(tradeUpsertOperations(tradeDocuments), { ordered: false });
+  if (equityDocuments.length) await equity.bulkWrite(equityUpsertOperations(equityDocuments), { ordered: false });
+  const now = new Date();
+  await db.collection("backtest_runs").replaceOne({ runId: job.runId }, { runId: job.runId, strategyId: ORDERFLOW_CONFLUENCE_V1_ID, strategyName: ORDERFLOW_CONFLUENCE_V1_NAME, config, summary: metrics, calculationVersion: CALCULATION_VERSION, createdAt: job.createdAt, completedAt: now }, { upsert: true });
+  await db.collection("backtest_jobs").updateOne({ runId: job.runId }, { $set: { status: "COMPLETED", progress: 100, currentStep: "COMPLETED", completedAt: now, error: null, errorCode: null, checkpoint: { lastProcessedM1Timestamp: to, balance: engine.balance, tradeSequence: tradeDocuments.length, equitySequence: equityDocuments.length } } });
+  return { status: "COMPLETED" as const, runId: job.runId, tradeCount: tradeDocuments.length, equityCount: equityDocuments.length, progress: 100 };
+}
+
 export async function processOneCloudBacktest(targetRunId?: string) {
   const db = await getMongoDb();
   const jobs = db.collection<CloudJob>("backtest_jobs");
@@ -124,6 +158,7 @@ export async function processOneCloudBacktest(targetRunId?: string) {
     if (req.strategyId === BREAKOUT_H4_STOP_AFTER_1_LOSS_ID) return await processBreakoutH4StopAfter1LossJob(db, job, req, from, to);
     if (req.strategyId === DAILY_PREVIOUS_CANDLE_BREAKOUT_ID) return await processDailyPreviousCandleBreakoutJob(db, job, req, from, to);
     if (req.strategyId === XAU_TREND_PULLBACK_H1_ID) return await processTrendPullbackH1Job(db, job, req, from, to);
+    if (req.strategyId === ORDERFLOW_CONFLUENCE_V1_ID) return await processOrderflowConfluenceJob(db, job, req, from, to);
     const repo = new MongoCandleRepository();
     const h4 = await repo.getCandles("XAUUSD", "H4", new Date(from.getTime() - 8 * 3600_000), to); const m1 = await repo.getCandles("XAUUSD", "M1", from, to);
     await jobs.updateOne({ runId: job.runId }, { $set: { progress: 25, currentStep: `Loaded ${h4.length + m1.length} candles` } });

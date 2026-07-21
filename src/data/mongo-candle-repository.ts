@@ -15,7 +15,14 @@ export class MongoCandleRepository implements CandleRepository {
   }
   async getCandles(symbol: string, timeframe: CloudTimeframe, startDate: Date, endDate: Date) {
     const docs = await (await getMongoDb()).collection("candles").find({ symbol, timeframe, timestamp: { $gte: startDate, $lte: endDate }, isClosed: true }).sort({ timestamp: 1 }).toArray();
-    return docs.map((d) => ({ timestamp: d.timestamp.getTime(), open: d.open, high: d.high, low: d.low, close: d.close }));
+    return docs.map((d) => ({ timestamp: d.timestamp.getTime(), open: d.open, high: d.high, low: d.low, close: d.close, ...(typeof d.volume === "number" ? { volume: d.volume } : {}) }));
+  }
+  async getCandlesExclusive(symbol: string, timeframe: CloudTimeframe, startDate: Date, endDateExclusive: Date) {
+    const docs = await (await getMongoDb()).collection("candles").find(
+      { symbol, timeframe, timestamp: { $gte: startDate, $lt: endDateExclusive }, isClosed: true },
+      { projection: { _id: 0, timestamp: 1, open: 1, high: 1, low: 1, close: 1, volume: 1, tickVolume: 1 }, hint: { symbol: 1, timeframe: 1, timestamp: 1 }, maxTimeMS: 30000 },
+    ).sort({ timestamp: 1 }).toArray();
+    return docs.map((d) => ({ timestamp: d.timestamp.getTime(), open: d.open, high: d.high, low: d.low, close: d.close, ...(typeof d.volume === "number" ? { volume: d.volume } : {}) }));
   }
   async upsertCandles(candles: Candle[], source = "unknown"): Promise<UpsertResult> {
     if (!candles.length) return { inserted: 0, updated: 0, skipped: 0, failed: 0 };

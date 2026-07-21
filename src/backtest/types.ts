@@ -47,6 +47,7 @@ export type BacktestRequest = {
   noTriggerDays?: number;
   pendingExpiredDays?: number;
   dailyAmbiguousCandles?: number;
+  stopBufferPips?: number; minimumStopDistancePips?: number; maximumStopDistancePips?: number; maximumEntryDistanceFromLevelPips?: number; maximumTradesPerSession?: number; cooldownBars?: number; useProxyVwapBias?: boolean; spreadPips?: number; slippagePips?: number; commissionPerLot?: number; executionMode?: "conservative"; orderFlowSource?: "none"; proxyOrderFlowEnabled?: boolean; orderFlowConfirmationRequired?: boolean;
 };
 
 export type BacktestTemplate = {

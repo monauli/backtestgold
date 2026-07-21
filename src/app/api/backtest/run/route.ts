@@ -9,6 +9,7 @@ import { getBacktestProcessMode } from "@/lib/backtest-process-mode";
 import { BREAKOUT_H4_EMA_TREND_ID } from "@/strategies/breakout_h4_ema_trend";
 import { BREAKOUT_H4_STOP_AFTER_1_LOSS_ID } from "@/strategies/breakout_h4_stop_after_1_loss";
 import { DAILY_PREVIOUS_CANDLE_BREAKOUT_ID, DAILY_PREVIOUS_CANDLE_BREAKOUT_ENTRY_OFFSET } from "@/strategies/daily_previous_candle_breakout";
+import { ORDERFLOW_CONFLUENCE_V1_ID } from "@/strategies/orderflow_confluence_v1/config";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -16,7 +17,7 @@ export const maxDuration = 300;
 function parseRequest(body: unknown): BacktestRequest {
   const b = (body ?? {}) as Record<string, unknown>;
   const strategyId = typeof b.strategyId === "string" ? b.strategyId : BREAKOUT_H4_STRATEGY_ID;
-  const req: BacktestRequest = { ...DEFAULT_REQUEST, strategyId, lot: strategyId === XAU_TREND_PULLBACK_H1_STRATEGY_ID || strategyId === BREAKOUT_H4_EMA_TREND_ID || strategyId === BREAKOUT_H4_STOP_AFTER_1_LOSS_ID || strategyId === DAILY_PREVIOUS_CANDLE_BREAKOUT_ID ? 0.35 : DEFAULT_REQUEST.lot, entryOffset: strategyId === DAILY_PREVIOUS_CANDLE_BREAKOUT_ID ? DAILY_PREVIOUS_CANDLE_BREAKOUT_ENTRY_OFFSET : undefined };
+  const req: BacktestRequest = { ...DEFAULT_REQUEST, strategyId, lot: strategyId === XAU_TREND_PULLBACK_H1_STRATEGY_ID || strategyId === BREAKOUT_H4_EMA_TREND_ID || strategyId === BREAKOUT_H4_STOP_AFTER_1_LOSS_ID || strategyId === DAILY_PREVIOUS_CANDLE_BREAKOUT_ID || strategyId === ORDERFLOW_CONFLUENCE_V1_ID ? 0.35 : DEFAULT_REQUEST.lot, entryOffset: strategyId === DAILY_PREVIOUS_CANDLE_BREAKOUT_ID ? DAILY_PREVIOUS_CANDLE_BREAKOUT_ENTRY_OFFSET : undefined };
   if (typeof b.startDate === "string") req.startDate = b.startDate;
   if (typeof b.endDate === "string") req.endDate = b.endDate;
   for (const key of ["breakoutPips", "stopLossPips", "takeProfitPips"] as const) {
@@ -29,6 +30,14 @@ function parseRequest(body: unknown): BacktestRequest {
   if (Number.isFinite(lot)) req.lot = lot;
   const bal = Number(b.initialBalance);
   if (Number.isFinite(bal)) req.initialBalance = bal;
+  if (strategyId === ORDERFLOW_CONFLUENCE_V1_ID) {
+    for (const key of ["riskReward", "stopBufferPips", "minimumStopDistancePips", "maximumStopDistancePips", "maximumEntryDistanceFromLevelPips", "maximumTradesPerSession", "maxTradesPerDay", "cooldownBars", "spreadPips", "slippagePips", "commissionPerLot"] as const) {
+      const value = Number(b[key]); if (Number.isFinite(value)) req[key] = value;
+    }
+    if (typeof b.useProxyVwapBias === "boolean") req.useProxyVwapBias = b.useProxyVwapBias;
+    req.executionMode = "conservative";
+    if (!(req.riskReward! > 0) || !(req.stopBufferPips! >= 0) || !(req.minimumStopDistancePips! > 0) || !(req.maximumStopDistancePips! >= req.minimumStopDistancePips!) || !(req.maximumTradesPerSession! > 0) || !(req.maxTradesPerDay! > 0)) throw new Error("Invalid Order Flow Confluence parameters");
+  }
   if (!(req.lot > 0) || !(req.initialBalance > 0))
     throw new Error("Lot and initial balance must be positive");
   return req;
