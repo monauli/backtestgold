@@ -2,20 +2,21 @@ import fs from "fs";
 import path from "path";
 
 export const DATA_DIR = path.join(process.cwd(), "data manual");
-const PATTERNS: Record<"H1" | "H4" | "M1", RegExp> = {
+const PATTERNS: Record<"H1" | "H4" | "M1" | "D1", RegExp> = {
   H1: /^XAUUSD_H1(?:_|\.|$)/i,
   H4: /^XAUUSD_H4(?:_|\.|$)/i,
   M1: /^XAUUSD_M1(?:_|\.|$)/i,
+  D1: /^XAUUSD_D1(?:_|\.|$)/i,
 };
 
 export function listSourceFiles(): string[] {
   try { return fs.readdirSync(DATA_DIR, { withFileTypes: true }).filter((x) => x.isFile() && x.name.toLowerCase().endsWith(".csv")).map((x) => x.name); }
   catch { return []; }
 }
-export function findDataCandidates(timeframe: "H1" | "H4" | "M1"): string[] {
+export function findDataCandidates(timeframe: "H1" | "H4" | "M1" | "D1"): string[] {
   return listSourceFiles().filter((name) => PATTERNS[timeframe].test(name));
 }
-export function findDataFile(timeframe: "H1" | "H4" | "M1"): string | null {
+export function findDataFile(timeframe: "H1" | "H4" | "M1" | "D1"): string | null {
   const candidates = findDataCandidates(timeframe);
   if (!candidates.length) return null;
   candidates.sort((a, b) => {
@@ -25,7 +26,7 @@ export function findDataFile(timeframe: "H1" | "H4" | "M1"): string | null {
   });
   return path.join(DATA_DIR, candidates[0]);
 }
-export function sourceNotFoundMessage(timeframe: "H1" | "H4" | "M1"): string {
+export function sourceNotFoundMessage(timeframe: "H1" | "H4" | "M1" | "D1"): string {
   const found = listSourceFiles();
   return `${timeframe} source CSV not found in:\n${DATA_DIR}\n\nFound CSV files:\n${found.length ? found.map((x) => `- ${x}`).join("\n") : "- (none)"}`;
 }

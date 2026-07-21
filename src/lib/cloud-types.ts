@@ -1,4 +1,4 @@
-export type CloudTimeframe = "M1" | "H1" | "H4";
+export type CloudTimeframe = "M1" | "H1" | "H4" | "D1";
 export type CandleDocument = {
   symbol: "XAUUSD"; timeframe: CloudTimeframe; timestamp: Date;
   open: number; high: number; low: number; close: number; volume: number | null;

@@ -8,6 +8,6 @@ export const xauTrendPullbackH1Strategy: StrategyDefinition = {
   description: "Strategi trend dan pullback XAUUSD menggunakan timeframe H1.",
   status: "DRAFT",
   signalTimeframe: "H1",
-  executionTimeframe: null,
+  executionTimeframe: "H1",
   validateConfig: validateXauTrendPullbackH1Config,
 };

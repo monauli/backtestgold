@@ -1,4 +1,4 @@
-export type BatchCombination = { combinationId: string; breakoutPips: number; stopLossPips: number; takeProfitPips: number };
+export type BatchCombination = { combinationId: string; breakoutPips?: number; stopLossPips?: number; takeProfitPips?: number; entryOffset?: number; strategyId?: string };
 export type BatchScoreRow = Record<string, number | string | null>;
 export type BatchGridInput = { breakoutPips: number[]; stopLossPips: number[]; takeProfitPips: number[] };
 export function parseGridValues(value: string): number[] {

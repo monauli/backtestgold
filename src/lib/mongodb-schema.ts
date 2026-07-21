@@ -7,7 +7,10 @@ export const CLOUD_COLLECTIONS = [
 
 const strategies = [
   { strategyId: "xau_h4_breakout", name: "Breakout H4", status: "READY", signalTimeframe: "H4", executionTimeframe: "M1" },
-  { strategyId: "xau_trend_pullback_h1", name: "XAU Trend Pullback H1", status: "DRAFT", signalTimeframe: "H1", executionTimeframe: null },
+  { strategyId: "breakout_h4_ema_trend", name: "Breakout H4 + EMA Trend Filter", status: "READY", signalTimeframe: "H4", executionTimeframe: "M1" },
+  { strategyId: "breakout_h4_stop_after_1_loss", name: "Breakout H4 – Stop After 1 Daily Loss", status: "READY", signalTimeframe: "H4", executionTimeframe: "M1" },
+  { strategyId: "daily_previous_candle_breakout", name: "Daily Previous Candle Breakout", status: "READY", signalTimeframe: "D1", executionTimeframe: "M1" },
+  { strategyId: "xau_trend_pullback_h1", name: "XAU Trend Pullback H1", status: "DRAFT", signalTimeframe: "H1", executionTimeframe: "H1" },
 ];
 
 export async function initializeMongoSchema(db: Db) {

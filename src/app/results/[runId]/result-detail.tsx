@@ -44,6 +44,9 @@ export default function ResultDetail({
   const [showConfig, setShowConfig] = useState(false);
   const m = summary.metrics;
   const cfg = summary.config as Partial<StoredConfig>;
+  const h1 = cfg.strategyId === "xau_trend_pullback_h1";
+  const dailyStop = cfg.strategyId === "breakout_h4_stop_after_1_loss";
+  const dailyPrevious = cfg.strategyId === "daily_previous_candle_breakout";
   const legacy = isLegacyRun(summary);
 
   const filtered = useMemo(() => {
@@ -117,14 +120,9 @@ export default function ResultDetail({
 
       {m && (
         <>
-          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <span>Breakout: <b>{cfg.breakoutPips ?? "-"} pip / {cfg.breakoutPriceDistance?.toFixed(2) ?? "-"} harga</b></span>
-              <span>Stop Loss: <b>{cfg.stopLossPips ?? "-"} pip / {cfg.stopLossPriceDistance?.toFixed(2) ?? "-"} harga</b></span>
-              <span>Take Profit: <b>{cfg.takeProfitPips ?? "-"} pip / {cfg.takeProfitPriceDistance?.toFixed(2) ?? "-"} harga</b></span>
-              <span>Risk Reward: <b>1:{cfg.riskReward ?? "-"}</b></span>
-            </div>
-          </div>
+          <div className="rounded-lg border border-slate-800 bg-slate-900 p-4 text-sm text-slate-300"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{h1 ? <><span>Signal: <b>H1</b></span><span>Entry/Management: <b>H1</b></span><span>Indicators: <b>EMA50 / EMA200 / ATR14</b></span><span>Risk Reward: <b>1:2</b></span></> : dailyPrevious ? <><span>Signal: <b>D1 closed</b></span><span>Execution: <b>M1</b></span><span>Entry Offset: <b>{cfg.entryOffset ?? "-"} price</b></span><span>Risk Reward: <b>1:{cfg.riskReward ?? "-"}</b></span></> : <><span>Breakout: <b>{cfg.breakoutPips ?? "-"} pip / {cfg.breakoutPriceDistance?.toFixed(2) ?? "-"} harga</b></span><span>Stop Loss: <b>{cfg.stopLossPips ?? "-"} pip / {cfg.stopLossPriceDistance?.toFixed(2) ?? "-"} harga</b></span><span>Take Profit: <b>{cfg.takeProfitPips ?? "-"} pip / {cfg.takeProfitPriceDistance?.toFixed(2) ?? "-"} harga</b></span><span>Risk Reward: <b>1:{cfg.riskReward ?? "-"}</b></span></>}</div></div>
+          {dailyStop && <div className="rounded-lg border border-amber-800 bg-amber-950/30 p-4 text-sm"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><span>Daily Stop Rule: <b>{cfg.dailyStopRule ?? "Stop after 1 realized loss"}</b></span><span>Timezone: <b>{cfg.dailyStopTimezone ?? "UTC"}</b></span><span>Blocked Days: <b>{cfg.dailyBlockedDays ?? 0}</b></span><span>Skipped Signals: <b>{cfg.dailySkippedSignals ?? 0}</b></span><span>Worst Daily Loss: <b>{usd(cfg.worstDailyLoss ?? 0)}</b></span><span>Consecutive Losing Days: <b>{cfg.consecutiveLosingDays ?? 0}</b></span></div></div>}
+          {dailyPrevious && <div className="rounded-lg border border-sky-800 bg-sky-950/30 p-4 text-sm"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4"><span>Previous Daily High: <b>{cfg.previousDailyHigh ?? "-"}</b></span><span>Previous Daily Low: <b>{cfg.previousDailyLow ?? "-"}</b></span><span>Entry Offset: <b>{cfg.entryOffset ?? "-"}</b></span><span>Buy Stop: <b>{cfg.buyStop ?? "-"}</b></span><span>Sell Stop: <b>{cfg.sellStop ?? "-"}</b></span><span>Pending Expired: <b>{cfg.pendingExpiredDays ?? 0}</b></span><span>Days Without Trigger: <b>{cfg.noTriggerDays ?? 0}</b></span><span>Ambiguous Candles: <b>{cfg.dailyAmbiguousCandles ?? 0}</b></span></div></div>}
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4 lg:grid-cols-5">
             <Metric label="Method" value={cfg.method ?? cfg.methodName ?? "-"} />
             <Metric label="Lot" value={cfg.lot ?? "-"} />

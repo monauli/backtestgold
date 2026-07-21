@@ -7,9 +7,7 @@ export function validateXauTrendPullbackH1Config(config: unknown): ValidationRes
   if (c.strategyId !== "xau_trend_pullback_h1") errors.push("Invalid strategyId");
   if (!(c.lot && c.lot > 0)) errors.push("Lot must be positive");
   if (!(c.initialBalance && c.initialBalance > 0)) errors.push("Initial balance must be positive");
-  errors.push("Trend definition is not specified");
-  errors.push("Pullback definition is not specified");
-  errors.push("Buy/Sell entry rules are not specified");
-  errors.push("Stop Loss and Take Profit rules are not specified");
-  return { valid: false, errors };
+  if (c.strategyName !== "XAU Trend Pullback H1") errors.push("Invalid strategyName");
+  if (c.riskReward !== 2) errors.push("Risk reward must be 1:2");
+  return { valid: errors.length === 0, errors };
 }

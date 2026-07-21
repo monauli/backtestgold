@@ -20,6 +20,33 @@ export type BacktestRequest = {
   takeProfitPips: number;
   lot: number;
   initialBalance: number;
+  strategyName?: string;
+  riskReward?: number;
+  emaFastPeriod?: number;
+  emaSlowPeriod?: number;
+  atrPeriod?: number;
+  warmupCandles?: number;
+  requestedStartDate?: string;
+  effectiveTradingStart?: string;
+  warmupCandlesUsed?: number;
+  pullbackAtrTolerance?: number;
+  trendAtrSeparation?: number;
+  swingLookback?: number;
+  swingFractalRadius?: number;
+  swingBufferAtr?: number;
+  stopAtrMultiple?: number;
+  confirmationBodyMin?: number;
+  confirmationCloseTopFraction?: number;
+  maxTradesPerDay?: number;
+  maxLossesPerDay?: number;
+  entryOffset?: number;
+  previousDailyHigh?: number;
+  previousDailyLow?: number;
+  buyStop?: number;
+  sellStop?: number;
+  noTriggerDays?: number;
+  pendingExpiredDays?: number;
+  dailyAmbiguousCandles?: number;
 };
 
 export type BacktestTemplate = {
@@ -58,6 +85,9 @@ export type EngineParams = {
   commission: number; // USD per trade
   session: Session;
   ambiguousHandling: AmbiguousHandling;
+  entryFilter?: (direction: "BUY" | "SELL", referenceCandle: Candle) => boolean;
+  entryGuard?: (timestamp: number) => boolean;
+  onTradeClosed?: (trade: BacktestTrade) => void;
 };
 
 /** Stored in config.json for every run. */
@@ -70,10 +100,10 @@ export type StoredConfig = {
   initialBalance: number;
   pipSize: number;
   pipValuePerLotUSD: number;
-  breakoutPips: number;
-  stopLossPips: number;
-  takeProfitPips: number;
-  riskReward: number;
+  breakoutPips?: number;
+  stopLossPips?: number;
+  takeProfitPips?: number;
+  riskReward?: number;
   startDate: string;
   endDate: string;
   calculationVersion: string;
@@ -82,6 +112,37 @@ export type StoredConfig = {
   breakoutPriceDistance?: number;
   stopLossPriceDistance?: number;
   takeProfitPriceDistance?: number;
+  emaFastPeriod?: number;
+  emaSlowPeriod?: number;
+  atrPeriod?: number;
+  warmupCandles?: number;
+  requestedStartDate?: string;
+  effectiveTradingStart?: string;
+  warmupCandlesUsed?: number;
+  pullbackAtrTolerance?: number;
+  trendAtrSeparation?: number;
+  swingLookback?: number;
+  swingFractalRadius?: number;
+  swingBufferAtr?: number;
+  stopAtrMultiple?: number;
+  confirmationBodyMin?: number;
+  confirmationCloseTopFraction?: number;
+  maxTradesPerDay?: number;
+  maxLossesPerDay?: number;
+  dailyStopRule?: string;
+  dailyStopTimezone?: string;
+  dailyBlockedDays?: number;
+  dailySkippedSignals?: number;
+  worstDailyLoss?: number;
+  consecutiveLosingDays?: number;
+  entryOffset?: number;
+  previousDailyHigh?: number;
+  previousDailyLow?: number;
+  buyStop?: number;
+  sellStop?: number;
+  noTriggerDays?: number;
+  pendingExpiredDays?: number;
+  dailyAmbiguousCandles?: number;
 };
 
 export type TradeResult =
@@ -188,7 +249,7 @@ export type CacheStatus = "NOT_INDEXED" | "INDEXING" | "READY" | "FAILED";
 
 export type CacheMeta = {
   status: CacheStatus;
-  timeframe: "H1" | "H4" | "M1";
+  timeframe: "H1" | "H4" | "M1" | "D1";
   sourceFile: string;
   fingerprint: { path: string; size: number; mtimeMs: number };
   candleCount: number;

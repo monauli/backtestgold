@@ -27,7 +27,7 @@ function sameFingerprint(a: CacheMeta["fingerprint"], b: CacheMeta["fingerprint"
   return a.path === b.path && a.size === b.size && a.mtimeMs === b.mtimeMs;
 }
 
-export function readMeta(tf: "H1" | "H4" | "M1"): CacheMeta | null {
+export function readMeta(tf: "H1" | "H4" | "M1" | "D1"): CacheMeta | null {
   try {
     return JSON.parse(fs.readFileSync(metaPath(tf), "utf8"));
   } catch {
@@ -36,7 +36,7 @@ export function readMeta(tf: "H1" | "H4" | "M1"): CacheMeta | null {
 }
 
 /** Cache state for a timeframe without touching the source CSV contents. */
-export function cacheStatus(tf: "H1" | "H4" | "M1"): CacheMeta {
+export function cacheStatus(tf: "H1" | "H4" | "M1" | "D1"): CacheMeta {
   const source = findDataFile(tf);
   const notIndexed = (extra: Partial<CacheMeta> = {}): CacheMeta => ({
     status: "NOT_INDEXED",
@@ -82,7 +82,7 @@ export function cacheStatus(tf: "H1" | "H4" | "M1"): CacheMeta {
   };
 }
 
-const TF_MS: Record<string, number> = { H1: 3600_000, H4: 4 * 3600_000, M1: 60_000 };
+const TF_MS: Record<string, number> = { H1: 3600_000, H4: 4 * 3600_000, M1: 60_000, D1: 86_400_000 };
 
 function isWeekendGap(prevTs: number, ts: number): boolean {
   const gap = ts - prevTs;
@@ -90,7 +90,7 @@ function isWeekendGap(prevTs: number, ts: number): boolean {
 }
 
 /** Build (or rebuild) the binary cache for a timeframe from the source CSV. */
-export async function buildCache(tf: "H1" | "H4" | "M1"): Promise<CacheMeta> {
+export async function buildCache(tf: "H1" | "H4" | "M1" | "D1"): Promise<CacheMeta> {
   const source = findDataFile(tf);
   if (!source) throw new Error(sourceNotFoundMessage(tf));
   const fp = fingerprint(source);
@@ -181,7 +181,7 @@ export async function buildCache(tf: "H1" | "H4" | "M1"): Promise<CacheMeta> {
 }
 
 /** Ensure a READY cache exists (build if missing/stale) and return its meta. */
-export async function ensureCache(tf: "H1" | "H4" | "M1"): Promise<CacheMeta> {
+export async function ensureCache(tf: "H1" | "H4" | "M1" | "D1"): Promise<CacheMeta> {
   const st = cacheStatus(tf);
   if (st.status === "READY") return st;
   return buildCache(tf);
@@ -207,7 +207,7 @@ function lowerBound(fd: number, count: number, target: number): number {
 
 /** Stream candles in [fromMs, toMs] from the binary cache. */
 export async function* streamCached(
-  tf: "H1" | "H4" | "M1",
+  tf: "H1" | "H4" | "M1" | "D1",
   fromMs?: number,
   toMs?: number
 ): AsyncGenerator<Candle> {
@@ -242,7 +242,7 @@ export async function* streamCached(
 }
 
 export async function loadCached(
-  tf: "H1" | "H4" | "M1",
+  tf: "H1" | "H4" | "M1" | "D1",
   fromMs?: number,
   toMs?: number
 ): Promise<Candle[]> {

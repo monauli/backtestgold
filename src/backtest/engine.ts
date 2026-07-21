@@ -99,6 +99,7 @@ export class BreakoutEngine {
       t.result = "OPEN_AT_END";
       this.settle(t, exit);
       this.position = null;
+      this.cfg.onTradeClosed?.(t);
     }
   }
 
@@ -140,7 +141,10 @@ export class BreakoutEngine {
       this.open(c, "BUY");
       return;
     }
-    this.open(c, buyTouched ? "BUY" : "SELL");
+    const direction = buyTouched ? "BUY" : "SELL";
+    if (this.cfg.entryFilter && !this.cfg.entryFilter(direction, this.refH4!)) return;
+    if (this.cfg.entryGuard && !this.cfg.entryGuard(c.timestamp)) return;
+    this.open(c, direction);
   }
 
   private recordSignalOnly(c: Candle, result: "AMBIGUOUS" | "SKIPPED"): void {
@@ -220,6 +224,7 @@ export class BreakoutEngine {
     t.result =
       t.netProfit > 0 ? "WIN" : t.netProfit < 0 ? "LOSS" : "BREAKEVEN";
     this.position = null;
+    this.cfg.onTradeClosed?.(t);
   }
 
   private settle(t: BacktestTrade, exit: number): void {

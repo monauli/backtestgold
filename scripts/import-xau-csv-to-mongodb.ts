@@ -10,7 +10,7 @@ const args = new Set(process.argv.slice(2));
 const value = (name: string) => process.argv.find((x) => x.startsWith(`${name}=`))?.split("=").slice(1).join("=");
 const requested = value("--timeframe");
 const timeframes: CloudTimeframe[] = requested ? [requested as CloudTimeframe] : ["M1", "H1", "H4"];
-if (timeframes.some((x) => !["M1", "H1", "H4"].includes(x))) throw new Error("--timeframe must be M1, H1, or H4");
+if (timeframes.some((x) => !["M1", "H1", "H4", "D1"].includes(x))) throw new Error("--timeframe must be M1, H1, H4, or D1");
 const from = new Date(value("--from") || "2022-01-01T00:00:00.000Z");
 if (!Number.isFinite(from.getTime())) throw new Error("--from must be a valid date");
 const dryRun = args.has("--dry-run");
@@ -19,7 +19,7 @@ const batchSize = Number(value("--batch-size") || "2000");
 if (!Number.isInteger(batchSize) || batchSize < 1) throw new Error("--batch-size must be a positive integer");
 if (!dryRun && !process.env.MONGODB_URI) throw new Error("MONGODB_URI is required for cloud import");
 
-const overlapMs: Record<CloudTimeframe, number> = { M1: 60_000, H1: 3_600_000, H4: 14_400_000 };
+const overlapMs: Record<CloudTimeframe, number> = { M1: 60_000, H1: 3_600_000, H4: 14_400_000, D1: 86_400_000 };
 const safeDate = (value: unknown): Date | null => value ? new Date(value as string | number | Date) : null;
 
 async function importTimeframe(timeframe: CloudTimeframe) {
