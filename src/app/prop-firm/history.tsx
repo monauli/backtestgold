@@ -5,6 +5,7 @@ import {
   normalizeHistoryRecord,
   safeFixed,
 } from "@/lib/prop-firm-simulator/format";
+import { isSimulationHistoryRecord } from "@/lib/prop-firm-simulator/history";
 
 type Item = {
   simulationId: string;
@@ -57,7 +58,7 @@ export default function History() {
     setBusy(true);
     fetch("/api/prop-firm")
       .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((payload) => setItems((payload.history ?? []).map((item: Item) => normalize(item))))
+      .then((payload) => setItems((payload.history ?? []).filter(isSimulationHistoryRecord).map((item: Item) => normalize(item))))
       .catch(() => setError("Tidak dapat memuat Simulation History."))
       .finally(() => setBusy(false));
   };
