@@ -36,6 +36,7 @@ export async function initializeMongoSchema(db: Db) {
   await db.collection("prop_firm_simulations").createIndex({ simulationId: 1 }, { unique: true, name: "prop_simulation_id" });
   await db.collection("prop_firm_simulations").createIndex({ createdAt: -1 }, { name: "prop_simulation_created" });
   await db.collection("prop_firm_simulations").createIndex({ fingerprint: 1 }, { name: "prop_simulation_fingerprint" });
+  await db.collection("prop_firm_simulations").createIndex({ methodId: 1, status: 1 }, { name: "prop_method_status" });
 
   const now = new Date();
   await db.collection("backtest_counters").updateOne(

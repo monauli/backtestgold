@@ -4,6 +4,7 @@ import { useState } from "react";
 import { FINAL_METHOD, SAVED_METHODS, type SavedMethod } from "@/config/saved-methods";
 import { safeFixed } from "@/lib/prop-firm-simulator/format";
 import { saveFinalMethod } from "@/lib/prop-firm-simulator/final-method";
+import { activeMethods, archiveMethod, archivedMethods, canArchiveMethod, defaultMethodId, isRunnableMethod, restoreMethod, selectedLotForMethod } from "@/lib/prop-firm-simulator/method-lifecycle";
 import History from "./history";
 
 type BatchRow = { lot: number; summary?: Record<string, number | null>; error?: string; simulationId?: string };
@@ -13,7 +14,9 @@ const sourceEnd = "2026-06-16";
 
 export default function PropFirmPage() {
   const [methods, setMethods] = useState(SAVED_METHODS);
-  const [methodId, setMethodId] = useState(SAVED_METHODS[0].id);
+  const [methodId, setMethodId] = useState(defaultMethodId(SAVED_METHODS));
+  const [showArchived, setShowArchived] = useState(false);
+  const [methodMessage, setMethodMessage] = useState("");
   const [startDate, setStartDate] = useState(sourceStart);
   const [endDate, setEndDate] = useState(sourceEnd);
   const [lot, setLot] = useState("0.32");
@@ -22,12 +25,14 @@ export default function PropFirmPage() {
   const [allResults, setAllResults] = useState<BatchRow[]>([]);
   const [allStatus, setAllStatus] = useState("");
   const [error, setError] = useState("");
-  const method = methods.find((x) => x.id === methodId) ?? methods[0];
+  const method = methods.find((x) => x.id === methodId) ?? methods.find((x) => x.isFinal) ?? methods[0];
+  const selectedLot = selectedLotForMethod(method, lot);
 
   async function run() {
+    if (!isRunnableMethod(method)) { setError("Metode yang diarsipkan tidak dapat dijalankan. Pulihkan metode terlebih dahulu."); return; }
     setRunning(true); setError(""); setResult(null);
     try {
-      const res = await fetch("/api/prop-firm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ methodId, startDate, endDate, lot: Number(lot) }) });
+      const res = await fetch("/api/prop-firm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ methodId, startDate, endDate, lot: Number(selectedLot) }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setResult(data);
@@ -36,6 +41,7 @@ export default function PropFirmPage() {
   }
 
   async function runAll() {
+    if (!isRunnableMethod(method)) { setError("Metode yang diarsipkan tidak dapat dijalankan. Pulihkan metode terlebih dahulu."); return; }
     setRunning(true); setAllResults([]); setError("");
     try {
       setAllStatus("Running lot 0.30, 0.32, 0.35");
@@ -51,15 +57,18 @@ export default function PropFirmPage() {
   return <div className="max-w-5xl space-y-6">
     <h2 className="text-2xl font-bold">Prop Firm Simulator</h2>
     <Step title="Step 1 — Pilih Metode">
-      <select className="rounded border border-slate-700 bg-slate-900 px-3 py-2" value={methodId} onChange={(e) => setMethodId(e.target.value)}>
-        {methods.map((item) => <option key={item.id} value={item.id}>{item.name}{item.badge ? " [FINAL]" : ""}</option>)}
+      <select className="rounded border border-slate-700 bg-slate-900 px-3 py-2" value={methodId} onChange={(e) => { const next = methods.find((item) => item.id === e.target.value); setMethodId(e.target.value); if (next?.isFinal) setLot(next.lot.toFixed(2)); }}>
+        {activeMethods(methods).map((item) => <option key={item.id} value={item.id}>{item.name}{item.badge ? " [FINAL]" : ""}</option>)}
+        {showArchived && <optgroup label="Archived Methods">{archivedMethods(methods).map((item) => <option key={item.id} value={item.id}>{item.name} [ARCHIVED]</option>)}</optgroup>}
       </select>
-      {method.badge && <span className="ml-2 rounded bg-emerald-700 px-2 py-1 text-xs font-bold text-white">FINAL</span>}
+      {method.badge && <span className="ml-2 rounded bg-emerald-700 px-2 py-1 text-xs font-bold text-white">FINAL</span>}{method.status === "ARCHIVED" && <span className="ml-2 rounded bg-slate-600 px-2 py-1 text-xs font-bold text-white">ARCHIVED</span>}
       <p className="mt-2 text-sm text-slate-400">Source: {method.sourceRunId} · Breakout {method.breakoutPips} · SL {method.stopLossPips} · TP {method.takeProfitPips}</p>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} /> Show Archived</label><button disabled={!canArchiveMethod(method)} onClick={() => { setMethods((current) => archiveMethod(current, method.id)); setMethodMessage(""); setMethodId(defaultMethodId(methods)); }} className="rounded border border-slate-600 px-2 py-1 disabled:cursor-not-allowed disabled:opacity-50">Archive Method</button>{method.status === "ARCHIVED" && <button onClick={() => { setMethods((current) => restoreMethod(current, method.id)); setMethodMessage("Method restored and active."); }} className="rounded border border-emerald-600 px-2 py-1 text-emerald-300">Restore Method</button>}</div>
+      {methodMessage && <p className="mt-2 text-sm text-amber-300">{methodMessage}</p>}
     </Step>
     <Step title="Step 2 — Pilih Periode"><div className="flex flex-wrap gap-3"><label className="text-sm">Mulai<input type="date" min={sourceStart} max={sourceEnd} value={startDate} onChange={(e) => setStartDate(e.target.value)} className="mt-1 block rounded border border-slate-700 bg-slate-900 px-3 py-2" /></label><label className="text-sm">Selesai<input type="date" min={sourceStart} max={sourceEnd} value={endDate} onChange={(e) => setEndDate(e.target.value)} className="mt-1 block rounded border border-slate-700 bg-slate-900 px-3 py-2" /></label></div><p className="mt-2 text-xs text-slate-500">Data tersedia: {sourceStart} sampai {sourceEnd}</p></Step>
-    <Step title="Step 3 — Pilih Lot"><div className="flex flex-wrap gap-2">{[["0.30", "Safe"], ["0.32", "Balanced"], ["0.35", "Aggressive"]].map(([value, label]) => <button key={value} onClick={() => setLot(value)} className={`rounded border px-3 py-2 ${lot === value ? "border-amber-500 bg-amber-950 text-amber-300" : "border-slate-700"}`}>{value} {label}</button>)}</div></Step>
-    <Step title="Step 4 — Jalankan"><button disabled={running} onClick={run} className="rounded bg-amber-500 px-4 py-2 font-semibold text-slate-950 disabled:opacity-60">{running ? "Running..." : "Run Simulation"}</button><button disabled={running} onClick={runAll} className="ml-2 rounded border border-amber-500 px-4 py-2 text-amber-300 disabled:opacity-60">Run All Lots</button>{allStatus && <span className="ml-2 text-sm text-slate-400">{allStatus}</span>}{running && <span className="ml-3 text-sm text-slate-400">Membaca trade source...</span>}{error && <p className="mt-3 rounded border border-red-800 bg-red-950 p-3 text-red-300">{error}</p>}</Step>
+    <Step title="Step 3 — Pilih Lot">{method.isFinal ? <p className="rounded border border-emerald-700 bg-emerald-950 px-3 py-2 text-sm text-emerald-300">Locked Final Lot: {selectedLot}</p> : <div className="flex flex-wrap gap-2">{[["0.30", "Safe"], ["0.32", "Balanced"], ["0.35", "Aggressive"]].map(([value, label]) => <button key={value} onClick={() => setLot(value)} className={`rounded border px-3 py-2 ${lot === value ? "border-amber-500 bg-amber-950 text-amber-300" : "border-slate-700"}`}>{value} {label}</button>)}</div>}</Step>
+    <Step title="Step 4 — Jalankan"><button disabled={running || !isRunnableMethod(method)} onClick={run} className="rounded bg-amber-500 px-4 py-2 font-semibold text-slate-950 disabled:opacity-60">{running ? "Running..." : "Run Simulation"}</button>{!method.isFinal && <button disabled={running || !isRunnableMethod(method)} onClick={runAll} className="ml-2 rounded border border-amber-500 px-4 py-2 text-amber-300 disabled:opacity-60">Run All Lots</button>}{method.isFinal && <span className="ml-2 text-sm text-emerald-300">Final method runs only at lot {selectedLot}.</span>}{method.status === "ARCHIVED" && <p className="mt-2 text-sm text-amber-300">Archived methods are read-only. Restore Method untuk menjalankannya.</p>}{allStatus && <span className="ml-2 text-sm text-slate-400">{allStatus}</span>}{running && <span className="ml-3 text-sm text-slate-400">Membaca trade source...</span>}{error && <p className="mt-3 rounded border border-red-800 bg-red-950 p-3 text-red-300">{error}</p>}</Step>
     {result && <Results result={result} />}
     {allResults.length > 0 && <BatchTable rows={allResults} onFinalMethodSaved={(finalMethod) => { setMethods((current) => current.some((item) => item.id === finalMethod.id) ? current : [...current, finalMethod]); setMethodId(finalMethod.id); }} />}
     <History />
