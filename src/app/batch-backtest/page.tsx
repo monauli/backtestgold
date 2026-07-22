@@ -9,7 +9,7 @@ const input = "w-full rounded border border-slate-700 bg-slate-900 px-3 py-2 tex
 
 export default function BatchBacktestPage() {
   const router = useRouter();
-  const [strategyId, setStrategyId] = useState("xau_h4_breakout");
+  const [strategyId, setStrategyId] = useState("xau_h4_breakout"); const visibleStrategies = strategyRegistry.filter((s) => s.id === "xau_h4_breakout");
   const [startDate, setStart] = useState("2022-01-03");
   const [endDate, setEnd] = useState("");
   const [breakout, setBreakout] = useState("5,10,15,20,25");
@@ -52,7 +52,7 @@ export default function BatchBacktestPage() {
   return <div className="max-w-4xl space-y-6">
     <div><h2 className="text-2xl font-bold">Batch Backtest / Grid Search</h2><p className="mt-1 text-sm text-slate-400">Pilih strategi; parameter tidak dicampur antar strategyId.</p></div>
     <div className="grid gap-4 rounded-lg border border-slate-800 bg-slate-900 p-4 md:grid-cols-2">
-      <label className="text-sm md:col-span-2">Strategy<select className={input + " mt-1"} value={strategyId} onChange={(e) => setStrategyId(e.target.value)}>{strategyRegistry.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <label className="text-sm md:col-span-2">Strategy<select className={input + " mt-1"} value={strategyId} onChange={(e) => setStrategyId(e.target.value)}>{visibleStrategies.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <label className="text-sm">Lot<input className={input + " mt-1"} value={lot} onChange={(e) => setLot(e.target.value)} /></label>
       <label className="text-sm">Initial Balance<input className={input + " mt-1"} value={balance} onChange={(e) => setBalance(e.target.value)} /></label>
       <label className="text-sm">Tanggal mulai<input type="date" className={input + " mt-1"} value={startDate} onChange={(e) => setStart(e.target.value)} /></label>

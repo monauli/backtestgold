@@ -10,6 +10,7 @@ const nav = [
   { href: "/batch-backtest", label: "Batch Backtest" },
   { href: "/results", label: "Backtest Results" },
   { href: "/compare", label: "Compare Results" },
+  { href: "/prop-firm", label: "Prop Firm Simulator" },
 ];
 
 export default function Sidebar() {

@@ -2,7 +2,7 @@ import type { Db } from "mongodb";
 
 export const CLOUD_COLLECTIONS = [
   "candles", "data_sync_state", "data_sync_locks", "backtest_jobs", "backtest_runs",
-  "backtest_trades", "backtest_equity", "backtest_templates", "backtest_counters", "strategy_registry", "batch_backtest_jobs", "batch_backtest_results",
+  "backtest_trades", "backtest_equity", "backtest_templates", "backtest_counters", "strategy_registry", "batch_backtest_jobs", "batch_backtest_results", "prop_firm_simulations",
 ] as const;
 
 const strategies = [
@@ -33,6 +33,9 @@ export async function initializeMongoSchema(db: Db) {
   await db.collection("batch_backtest_results").createIndex({ batchId: 1, profitFactor: -1 }, { name: "batch_result_profit_factor" });
   await db.collection("batch_backtest_results").createIndex({ batchId: 1, winRate: -1 }, { name: "batch_result_win_rate" });
   await db.collection("batch_backtest_results").createIndex({ batchId: 1, netProfit: -1 }, { name: "batch_result_net_profit" });
+  await db.collection("prop_firm_simulations").createIndex({ simulationId: 1 }, { unique: true, name: "prop_simulation_id" });
+  await db.collection("prop_firm_simulations").createIndex({ createdAt: -1 }, { name: "prop_simulation_created" });
+  await db.collection("prop_firm_simulations").createIndex({ fingerprint: 1 }, { name: "prop_simulation_fingerprint" });
 
   const now = new Date();
   await db.collection("backtest_counters").updateOne(
