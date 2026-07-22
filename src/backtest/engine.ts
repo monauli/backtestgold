@@ -36,6 +36,7 @@ type OpenPosition = {
   trade: BacktestTrade;
   sl: number;
   tp: number;
+  movedStop: boolean;
 };
 
 /**
@@ -56,6 +57,7 @@ export class BreakoutEngine {
   ambiguousSignals = 0;
   skippedSignals = 0;
   balance: number;
+  managementStats = { fullTp: 0, movedSlExit: 0, originalSl: 0, intrabarAmbiguities: 0 };
 
   private h4: Candle[];
   private h4Index = -1;
@@ -199,13 +201,25 @@ export class BreakoutEngine {
       balanceBefore: this.balance,
       balanceAfter: this.balance,
     };
-    this.position = { direction, trade, sl, tp };
+    this.position = { direction, trade, sl, tp, movedStop: false };
     // SL/TP may already be inside the entry candle's range
     this.checkExit(c);
   }
 
   private checkExit(c: Candle): void {
     const p = this.position!;
+    const management = this.cfg.tradeManagement;
+    if (management && !p.movedStop) {
+      const originalSlHit = p.direction === "BUY" ? c.low <= p.sl : c.high >= p.sl;
+      if (originalSlHit) { this.closeAt(p.sl, "original"); return; }
+      const triggerHit = p.direction === "BUY" ? c.high >= p.trade.entryPrice + management.triggerDistance : c.low <= p.trade.entryPrice - management.triggerDistance;
+      if (triggerHit) {
+        p.sl = p.direction === "BUY" ? p.trade.entryPrice + management.movedStopDistance : p.trade.entryPrice - management.movedStopDistance;
+        p.movedStop = true;
+        const movedSlHit = p.direction === "BUY" ? c.low <= p.sl : c.high >= p.sl;
+        if (movedSlHit) { this.managementStats.intrabarAmbiguities++; this.closeAt(p.sl, "moved"); return; }
+      }
+    }
     const slHit = p.direction === "BUY" ? c.low <= p.sl : c.high >= p.sl;
     const tpHit = p.direction === "BUY" ? c.high >= p.tp : c.low <= p.tp;
     if (!slHit && !tpHit) return;
@@ -217,14 +231,15 @@ export class BreakoutEngine {
     } else {
       exit = slHit ? p.sl : p.tp;
     }
-    const t = p.trade;
-    t.exitTime = iso(c.timestamp);
-    t.exitPrice = exit;
-    this.settle(t, exit);
-    t.result =
-      t.netProfit > 0 ? "WIN" : t.netProfit < 0 ? "LOSS" : "BREAKEVEN";
-    this.position = null;
-    this.cfg.onTradeClosed?.(t);
+    this.closeAt(exit, slHit ? (p.movedStop ? "moved" : "original") : "tp", c.timestamp);
+  }
+
+  private closeAt(exit: number, kind: "original" | "moved" | "tp", timestamp = this.lastM1!.timestamp) {
+    const p = this.position!; const t = p.trade;
+    t.exitTime = iso(timestamp); t.exitPrice = exit; this.settle(t, exit);
+    t.result = t.netProfit > 0 ? "WIN" : t.netProfit < 0 ? "LOSS" : "BREAKEVEN";
+    if (kind === "tp") this.managementStats.fullTp++; else if (kind === "moved") this.managementStats.movedSlExit++; else this.managementStats.originalSl++;
+    this.position = null; this.cfg.onTradeClosed?.(t);
   }
 
   private settle(t: BacktestTrade, exit: number): void {

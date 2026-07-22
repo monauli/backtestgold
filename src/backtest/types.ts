@@ -47,7 +47,7 @@ export type BacktestRequest = {
   noTriggerDays?: number;
   pendingExpiredDays?: number;
   dailyAmbiguousCandles?: number;
-  stopBufferPips?: number; minimumStopDistancePips?: number; maximumStopDistancePips?: number; maximumEntryDistanceFromLevelPips?: number; maximumTradesPerSession?: number; cooldownBars?: number; useProxyVwapBias?: boolean; spreadPips?: number; slippagePips?: number; commissionPerLot?: number; executionMode?: "conservative"; orderFlowSource?: "none"; proxyOrderFlowEnabled?: boolean; orderFlowConfirmationRequired?: boolean;
+  stopBufferPips?: number; minimumStopDistancePips?: number; maximumStopDistancePips?: number; maximumEntryDistanceFromLevelPips?: number; maximumTradesPerSession?: number; cooldownBars?: number; useProxyVwapBias?: boolean; spreadPips?: number; slippagePips?: number; commissionPerLot?: number; executionMode?: "conservative"; orderFlowSource?: "none"; proxyOrderFlowEnabled?: boolean; orderFlowConfirmationRequired?: boolean; activeWindow?: "JAKARTA_07_00_23_59";
 };
 
 export type BacktestTemplate = {
@@ -89,6 +89,7 @@ export type EngineParams = {
   entryFilter?: (direction: "BUY" | "SELL", referenceCandle: Candle) => boolean;
   entryGuard?: (timestamp: number) => boolean;
   onTradeClosed?: (trade: BacktestTrade) => void;
+  tradeManagement?: { triggerDistance: number; movedStopDistance: number };
 };
 
 /** Stored in config.json for every run. */

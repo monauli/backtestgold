@@ -14,6 +14,7 @@ import { runTrendPullbackH1Request } from "@/strategies/xau_trend_pullback_h1/ru
 import { XAU_TREND_PULLBACK_H1_ID, XAU_TREND_PULLBACK_H1_NAME } from "@/strategies/xau_trend_pullback_h1/config";
 import { BREAKOUT_H4_STOP_AFTER_1_LOSS_ID, BREAKOUT_H4_STOP_AFTER_1_LOSS_NAME, BREAKOUT_H4_STOP_AFTER_1_LOSS_RULE, createStopAfterOneDailyLoss, existingCandleTimezone, summarizeDailyLosses } from "@/strategies/breakout_h4_stop_after_1_loss";
 import { DAILY_PREVIOUS_CANDLE_BREAKOUT_ID, DAILY_PREVIOUS_CANDLE_BREAKOUT_NAME, DAILY_PREVIOUS_CANDLE_BREAKOUT_ENTRY_OFFSET, DailyPreviousCandleBreakoutEngine } from "@/strategies/daily_previous_candle_breakout";
+import { isActiveWindowEntry } from "@/lib/prop-firm-simulator/active-window";
 
 export const REPORTS_DIR = path.join(process.cwd(), "reports");
 const INDEX_FILE = path.join(REPORTS_DIR, "index.json");
@@ -111,7 +112,7 @@ export async function runBacktest(req: BacktestRequest, runId = nextRunId()): Pr
       startDate, endDate, calculationVersion: CALCULATION_VERSION,
     };
     summary.config = config; upsertIndex(summary); fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify(config, null, 2));
-    const params: EngineParams = { breakoutDistance: pipsToPrice(req.breakoutPips), stopLossDistance: pipsToPrice(req.stopLossPips), takeProfitDistance: pipsToPrice(req.takeProfitPips), lot: req.lot, initialBalance: req.initialBalance, spread: 0, slippage: 0, commission: 0, session: "ALL", ambiguousHandling: "SKIP" };
+    const params: EngineParams = { breakoutDistance: pipsToPrice(req.breakoutPips), stopLossDistance: pipsToPrice(req.stopLossPips), takeProfitDistance: pipsToPrice(req.takeProfitPips), lot: req.lot, initialBalance: req.initialBalance, spread: 0, slippage: 0, commission: 0, session: "ALL", ambiguousHandling: "SKIP", ...(req.activeWindow === "JAKARTA_07_00_23_59" ? { entryGuard: isActiveWindowEntry } : {}) };
     const h4 = await loadCached("H4", fromMs - 8 * 3600_000, toMs); if (h4.length < 2) throw new Error("Not enough H4 candles");
     const engine = new BreakoutEngine(h4, params); let m1Count = 0;
     for await (const c of streamCached("M1", fromMs, toMs)) { m1Count++; engine.onM1(c); }
